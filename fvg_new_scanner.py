@@ -35,7 +35,7 @@ from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ── CONFIG ────────────────────────────────────────────────
-BASE_URL   = "https://fapi.binance.com/fapi/v1"
+BASE_URL   = "https://api.binance.com/api/v3"
 BATCH_SIZE = 8
 DELAY_SEC  = 0.2
 LOOKBACKS  = [5, 10, 15]
@@ -293,8 +293,7 @@ def fetch_futures_symbols():
     return sorted([
         s["symbol"] for s in r.json()["symbols"]
         if s["status"] == "TRADING"
-        and s["contractType"] == "PERPETUAL"
-        and s["quoteAsset"] == "USDT"
+        and s["quoteAsset"] == "USDT" and s.get("isSpotTradingAllowed", True)
     ])
 
 def fetch_klines(symbol, interval, limit):
@@ -393,7 +392,7 @@ st.markdown("""
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
   <span style="font-size:14px;color:#20a050;">◆</span>
   <span class="pg-title">FVG AUTO SCANNER</span>
-  <span class="badge b-purple">USDT-M PERP</span>
+  <span class="badge b-purple">SPOT USDT</span>
   <span class="badge b-blue">BINANCE</span>
   <span class="badge b-new">AUTO-SCHEDULED</span>
 </div>
@@ -573,7 +572,7 @@ def run_scan(tf_val, lb_val, log_lines):
 
     log(f"🔄  Scan #{st.session_state.scan_count+1} · {tf_val.upper()} · lookback {lb_val} · {total} symbols", "done")
     prog_label_el.markdown(
-        '<div class="prog-label">Scanning all USDT-M perpetuals...</div>',
+        '<div class="prog-label">Scanning all Spot USDT pairs...</div>',
         unsafe_allow_html=True
     )
     bar     = prog_bar_el.progress(0)
