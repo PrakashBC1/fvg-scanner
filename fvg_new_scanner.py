@@ -101,10 +101,10 @@ html,body,[class*="css"],[class*="st-"]{font-family:'JetBrains Mono',monospace!i
 .scan-hdr-fresh{color:#40ff90;}.scan-hdr-dupe{color:#6080a8;}
 
 /* Results table */
-.t-head{display:grid;grid-template-columns:1.2fr 125px 110px 75px 110px 110px;padding:8px 16px;background:#060911;border-left:1px solid #253050;border-right:1px solid #253050;gap:8px;}
+.t-head{display:grid;grid-template-columns:1fr 90px 80px 55px 105px 90px 90px 90px 90px;padding:8px 16px;background:#060911;border-left:1px solid #253050;border-right:1px solid #253050;gap:8px;}
 .t-head span{font-size:10px;font-weight:700;color:#8090b0;letter-spacing:2px;font-family:'JetBrains Mono',monospace;}
 .t-body{border:1px solid #253050;border-top:none;border-radius:0 0 8px 8px;overflow:hidden;}
-.t-row{display:grid;grid-template-columns:1.2fr 125px 110px 75px 110px 110px;align-items:center;padding:9px 16px;border-bottom:1px solid #111e34;background:#0b1020;gap:8px;animation:fadeIn .3s ease;}
+.t-row{display:grid;grid-template-columns:1fr 90px 80px 55px 105px 90px 90px 90px 90px;align-items:center;padding:9px 16px;border-bottom:1px solid #111e34;background:#0b1020;gap:8px;animation:fadeIn .3s ease;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:translateY(0)}}
 .t-row:nth-child(even){background:#0d1428;}
 .t-row:hover{background:#14203c;}
@@ -281,14 +281,18 @@ def find_fvg_pullbacks(candles, lookback):
             continue
 
         found.append({
-            "fvg_type":      fvg_type,
-            "gap_low":       round(gap_low,  6),
-            "gap_high":      round(gap_high, 6),
-            "gap_size":      gap_size,
+            "fvg_type":       fvg_type,
+            "gap_low":        round(gap_low,  6),
+            "gap_high":       round(gap_high, 6),
+            "gap_size":       gap_size,
             "pullback_after": pullback_candle,
-            "c3_high":       round(h3, 6),
-            "c3_low":        round(l3, 6),
-            "timestamp":     c3[5] if len(c3) > 5 else None,
+            "c3_high":        round(h3, 6),
+            "c3_low":         round(l3, 6),
+            "timestamp":      c3[5] if len(c3) > 5 else None,
+            # Store raw values for verification display
+            "c1_high": round(h1, 6), "c1_low": round(l1, 6),
+            "c2_high": round(h2, 6), "c2_low": round(l2, 6),
+            "c2_close": round(cl2, 6), "c3_open": round(o3, 6),
         })
 
     found.sort(key=lambda x: -(x["timestamp"] or 0))
@@ -387,22 +391,41 @@ def render_table_html(results):
         return '<div class="t-body"><div class="t-empty">No setups detected in this scan</div></div>'
     html = ""
     for r in results:
-        is_bull = r["fvg_type"] == "BULLISH"
+        is_bull  = r["fvg_type"] == "BULLISH"
         type_badge = (
-            '<span class="badge b-green">▲ Bullish</span>'
+            '<span class="badge b-green">▲ Bull</span>'
             if is_bull else
-            '<span class="badge b-red">▼ Bearish</span>'
+            '<span class="badge b-red">▼ Bear</span>'
         )
         size_cls = "cell-g" if is_bull else "cell-r"
-        inv      = f"{r['c3_high']:,.4f}" if is_bull else f"{r['c3_low']:,.4f}"
-        inv_lbl  = "C3.high" if is_bull else "C3.low"
+
+        # Verify all 4 conditions and colour green/red
+        def ck(cond):
+            return (f'<span class="cell" style="color:#40d4c0;">✓</span>'
+                    if cond else
+                    f'<span class="cell" style="color:#ff8080;">✗</span>')
+
+        if is_bull:
+            c1 = ck(r["c2_low"]  > r["c1_low"])
+            c2 = ck(r["c2_high"] > r["c1_high"])
+            c3 = ck(r["c2_close"] < r["c3_open"])
+            c4 = ck(r["c1_high"] < r["gap_high"])
+        else:
+            c1 = ck(r["c2_high"] < r["c1_high"])
+            c2 = ck(r["c2_low"]  < r["c1_low"])
+            c3 = ck(r["c2_close"] > r["c3_open"])
+            c4 = ck(r["c1_low"]  > r["gap_low"])
+
         html += f"""<div class="t-row">
             <span class="sym">{r['symbol']}</span>
             {type_badge}
             <span class="cell cell-dim">{fmt_date(r['timestamp'])}</span>
-            <span class="cell {size_cls}">{r['gap_size']:.4f}%</span>
+            <span class="cell {size_cls}">{r['gap_size']:.3f}%</span>
             <span class="cell cell-w">{r['gap_low']:,.4f}–{r['gap_high']:,.4f}</span>
-            <span class="cell cell-a">{inv_lbl}: {inv}</span>
+            <div style="display:flex;gap:4px;align-items:center;">{c1}<span class="cell cell-dim" style="font-size:9px;">C2low&gt;C1low</span></div>
+            <div style="display:flex;gap:4px;align-items:center;">{c2}<span class="cell cell-dim" style="font-size:9px;">C2hi&gt;C1hi</span></div>
+            <div style="display:flex;gap:4px;align-items:center;">{c3}<span class="cell cell-dim" style="font-size:9px;">C2cl&lt;C3op</span></div>
+            <div style="display:flex;gap:4px;align-items:center;">{c4}<span class="cell cell-dim" style="font-size:9px;">C1hi&lt;C3low</span></div>
         </div>"""
     return f'<div class="t-body">{html}</div>'
 
@@ -577,8 +600,10 @@ def refresh_results_display():
           </div>
           <div class="t-head">
             <span>Symbol</span><span>Type</span>
-            <span>Detected At</span><span>Gap Size</span>
-            <span>Gap Zone</span><span>Invalidation</span>
+            <span>Detected</span><span>Gap%</span>
+            <span>Gap Zone</span>
+            <span>① Engulf↓</span><span>② Engulf↑</span>
+            <span>③ Gap Open</span><span>④ Gap Zone</span>
           </div>
           {render_table_html(fresh)}
         </div>"""
