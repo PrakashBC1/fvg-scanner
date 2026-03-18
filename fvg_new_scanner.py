@@ -1,6 +1,6 @@
 """
 =============================================================
-  BYBIT USDT-M FUTURES — FVG Pullback Scanner
+  OKX USDT-M FUTURES — FVG Pullback Scanner
   Auto-schedules 5 min after each candle close
 =============================================================
   Install : pip install streamlit requests
@@ -35,7 +35,7 @@ from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ── CONFIG ────────────────────────────────────────────────
-BASE_URL   = "https://api.bybit.com"
+BASE_URL   = "https://www.okx.com"
 BATCH_SIZE = 8
 DELAY_SEC  = 0.2
 LOOKBACKS  = [5, 10, 15]
@@ -285,60 +285,59 @@ def find_fvg_pullbacks(candles, lookback):
 
 
 # ══════════════════════════════════════════════════════════
-# BYBIT FETCHERS
+# OKX FETCHERS
 # ══════════════════════════════════════════════════════════
 def fetch_futures_symbols():
-    """Fetch all active USDT linear perpetual symbols from Bybit."""
+    """Fetch all active USDT perpetual swap symbols from OKX."""
     r = requests.get(
-        f"{BASE_URL}/v5/market/instruments-info",
-        params={"category": "linear", "limit": 1000},
+        f"{BASE_URL}/api/v5/public/instruments",
+        params={"instType": "SWAP"},
         timeout=10
     )
     r.raise_for_status()
     data = r.json()
     symbols = [
-        s["symbol"] for s in data["result"]["list"]
-        if s["quoteCoin"] == "USDT"
-        and s["status"] == "Trading"
-        and s["symbol"].endswith("USDT")
+        s["instId"] for s in data["data"]
+        if s["settleCcy"] == "USDT"
+        and s["state"] == "live"
+        and s["instId"].endswith("-USDT-SWAP")
     ]
     return sorted(symbols)
 
-# Bybit interval map
-BYBIT_INTERVAL = {"1h": "60", "4h": "240", "1d": "D", "1w": "W"}
+# OKX interval map
+OKX_INTERVAL = {"1h": "1H", "4h": "4H", "1d": "1D", "1w": "1W"}
 
 def fetch_klines(symbol, interval, limit):
-    """Fetch completed candles from Bybit."""
-    bybit_interval = BYBIT_INTERVAL.get(interval, "60")
+    """Fetch completed candles from OKX."""
+    okx_interval = OKX_INTERVAL.get(interval, "1H")
     r = requests.get(
-        f"{BASE_URL}/v5/market/kline",
+        f"{BASE_URL}/api/v5/market/candles",
         params={
-            "category": "linear",
-            "symbol":   symbol,
-            "interval": bybit_interval,
-            "limit":    limit + 6
+            "instId": symbol,
+            "bar":    okx_interval,
+            "limit":  str(limit + 6)
         },
         timeout=10
     )
     if r.status_code == 429:
         time.sleep(3)
         r = requests.get(
-            f"{BASE_URL}/v5/market/kline",
+            f"{BASE_URL}/api/v5/market/candles",
             params={
-                "category": "linear",
-                "symbol":   symbol,
-                "interval": bybit_interval,
-                "limit":    limit + 6
+                "instId": symbol,
+                "bar":    okx_interval,
+                "limit":  str(limit + 6)
             },
             timeout=10
         )
     r.raise_for_status()
-    raw = r.json()["result"]["list"]
-    # Bybit returns newest first — reverse to get oldest first
-    # Format: [startTime, open, high, low, close, volume, turnover]
+    raw = r.json()["data"]
+    # OKX returns newest first — reverse to oldest first
+    # Format: [ts, open, high, low, close, vol, volCcy, volCcyQuote, confirm]
     raw = list(reversed(raw))
-    # Drop last (current incomplete) candle
-    raw = raw[:-1]
+    # Drop last candle if not confirmed (confirm == "0")
+    if raw and raw[-1][8] == "0":
+        raw = raw[:-1]
     return [
         (float(c[1]), float(c[2]), float(c[3]),
          float(c[4]), float(c[5]), int(c[0]))
@@ -424,8 +423,8 @@ st.markdown("""
 <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px;">
   <span style="font-size:14px;color:#20a050;">◆</span>
   <span class="pg-title">FVG AUTO SCANNER</span>
-  <span class="badge b-purple">LINEAR PERP</span>
-  <span class="badge b-blue">BYBIT</span>
+  <span class="badge b-purple">USDT SWAP</span>
+  <span class="badge b-blue">OKX</span>
   <span class="badge b-new">AUTO-SCHEDULED</span>
 </div>
 <div class="pg-sub">
