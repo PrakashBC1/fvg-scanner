@@ -232,10 +232,21 @@ def find_fvg_pullbacks(candles, lookback):
 
         fvg_type = gap_low = gap_high = None
 
-        if cl2 < o3 and h1 < l3:
+        # Bullish FVG — 4 conditions:
+        # ① C2.low  > C1.low   (C2 engulfs C1 below)
+        # ② C2.high > C1.high  (C2 engulfs C1 above)
+        # ③ C2.close < C3.open (gap up into C3)
+        # ④ C1.high < C3.low   (gap zone defined)
+        if l2 > l1 and h2 > h1 and cl2 < o3 and h1 < l3:
             fvg_type = "BULLISH"
             gap_low, gap_high = h1, l3
-        elif cl2 > o3 and l1 > h3:
+
+        # Bearish FVG — 4 conditions:
+        # ① C2.high < C1.high  (C2 engulfs C1 above)
+        # ② C2.low  < C1.low   (C2 engulfs C1 below)
+        # ③ C2.close > C3.open (gap down into C3)
+        # ④ C1.low  > C3.high  (gap zone defined)
+        elif h2 < h1 and l2 < l1 and cl2 > o3 and l1 > h3:
             fvg_type = "BEARISH"
             gap_low, gap_high = h3, l1
 
@@ -428,8 +439,8 @@ st.markdown("""
   <span class="badge b-new">AUTO-SCHEDULED</span>
 </div>
 <div class="pg-sub">
-  Fires 5 min after each candle close · 1H=hourly · 4H=every 4h · 1D=daily ·
-  Results kept 24h · Each scan table shows only fresh findings
+  Bullish: C2.low&gt;C1.low · C2.high&gt;C1.high · C2.close&lt;C3.open · C1.high&lt;C3.low &nbsp;|&nbsp;
+  Bearish: C2.high&lt;C1.high · C2.low&lt;C1.low · C2.close&gt;C3.open · C1.low&gt;C3.high
 </div>
 """, unsafe_allow_html=True)
 
